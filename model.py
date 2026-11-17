@@ -14,6 +14,9 @@ LEVELS = (0.05, 0.25, 0.5, 0.75, 0.95)
 # Chosen by leave-one-out over the comparables: the kernel width, in ln-viewers, of how far a past launch's hour 1
 # may sit from the target's and still count. Wider kernels let tiny launches that exploded later inflate the tails.
 SIZE_BANDWIDTH = 1.2
+# A console-only launch (no PC version) follows the same release-day rhythm as GTA VI, which is console-only too:
+# its curve counts this many times as much as a PC-or-mixed launch's of the same size.
+CONSOLE_ONLY_BONUS = 4.0
 # Fewest analogues an hour needs before its own spread is trusted.
 MIN_POINTS = 4
 # Hours of a comparable's release day (of 23) it must cover to be used at all.
@@ -63,6 +66,12 @@ def weighted_quantile(pairs, tau):
     return pairs[-1][0]
 
 
+def is_console_only(comp):
+    """True when the comparable's platform list names no PC, Steam or Stadia version."""
+    tokens = str(comp.get("platforms", "")).lower().replace("/", ",").split(",")
+    return bool(tokens) and not any(t.strip().startswith(("pc", "steam", "stadia")) for t in tokens)
+
+
 def analogues(case, p1):
     """Yield (offset curve, own hour 1, weight) per comparable that has enough of its release day."""
     lp = math.log(p1)
@@ -74,7 +83,10 @@ def analogues(case, p1):
             continue
         own1 = max(curve[0], 1.0)
         gap = (math.log(own1) - lp) / SIZE_BANDWIDTH
-        yield curve, own1, math.exp(-0.5 * gap * gap)
+        weight = math.exp(-0.5 * gap * gap)
+        if is_console_only(comp):
+            weight *= CONSOLE_ONLY_BONUS
+        yield curve, own1, weight
 
 
 def forecast(case):
